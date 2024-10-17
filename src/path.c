@@ -1,7 +1,8 @@
+#include <stdio.h>
+#include <unistd.h>  // This is the correct header for access() and other system calls
 #include <stdlib.h>
 #include <string.h>
 #include "path.h"
-#include <Kernel/sys/unistd.h>
 
 char* search_paths[MAX_PATHS] = { "/bin", NULL };
 
