@@ -1,27 +1,25 @@
 CC = gcc
-CFLAGS = -Wall	-Werror	-std=gnu99
+CFLAGS = -Wall -Werror -std=c99
 
-TARGET = rush
+OBJECTS = main.o parser.o executor.o path_manager.o utilities.o
 
-OBJS = main.o parser.o executor.o path.o error.o
+rush: $(OBJECTS)
+	$(CC) $(CFLAGS)	-o	rush $(OBJECTS)
 
-$(TARGET): $(OBJS)
-	$(CC)	$(CFLAGS)	-o	$(TARGET)	$(OBJS)  # Ensure this line uses a tab
+main.o: main.c rush.h
+	$(CC) $(CFLAGS) -c main.c
 
-main.o: main.c
-	$(CC)	$(CFLAGS)	-c	main.c  # Ensure this line uses a tab
+parser.o: parser.c rush.h
+	$(CC) $(CFLAGS) -c parser.c
 
-parser.o: parser.c
-	$(CC)	$(CFLAGS)	-c	parser.c  # Ensure this line uses a tab
+executor.o: executor.c rush.h
+	$(CC) $(CFLAGS) -c executor.c
 
-executor.o: executor.c
-	$(CC)	$(CFLAGS)	-c	executor.c  # Ensure this line uses a tab
+path_manager.o: path_manager.c rush.h
+	$(CC) $(CFLAGS) -c path_manager.c
 
-path.o: path.c
-	$(CC)	$(CFLAGS)	-c	path.c  # Ensure this line uses a tab
-
-error.o: error.c
-	$(CC)	$(CFLAGS)	-c	error.c  # Ensure this line uses a tab
+utilities.o: utilities.c rush.h
+	$(CC) $(CFLAGS) -c utilities.c
 
 clean:
-	rm -f $(OBJS) $(TARGET)  # Ensure this line uses a tab
+	rm -f rush *.o

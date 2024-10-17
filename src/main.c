@@ -1,48 +1,40 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include "parser.h"
-#include "executor.h"
-#include "path.h"
-#include "error.h"
+#include "rush.h"
 
 int main(int argc, char *argv[]) {
     if (argc > 1) {
-        print_error();  // Print error if rush is invoked with arguments
-        return 1;
+        print_error();
+        exit(1);
     }
 
-    char *line = NULL;
-    size_t len = 0;
+    // Initialize the shell path
+    PathList *shell_path = init_path();
 
-    init_path();  // Initialize the default path
-
+    // Start the shell loop
     while (1) {
+        char *input_line = NULL;
+        size_t buffer_size = 0;
+
         printf("rush> ");
         fflush(stdout);
+        getline(&input_line, &buffer_size, stdin);
 
-        if (getline(&line, &len, stdin) == -1) {
-            break;  // Exit on EOF (Ctrl+D)
+        // Process the input line
+        if (is_empty_line(input_line)) {
+            free(input_line);
+            continue;
         }
 
-        // Remove newline character
-        line[strcspn(line, "\n")] = 0;
+        // Parse the input line into commands
+        int command_count = 0;
+        Command **commands = parse_input(input_line, &command_count);
+        free(input_line);
 
-        if (strcmp(line, "exit") == 0) {
-            break;
-        }
+        // Execute the commands
+        execute_commands(commands, command_count, shell_path);
 
-        if (strlen(line) == 0) {
-            continue;  // Ignore empty lines
-        }
-
-        char **commands = parse_commands(line);  // Split into individual commands
-        execute_commands(commands);  // Execute parsed commands
-
-        free_commands(commands);
+        // Clean up
+        free_commands(commands, command_count);
     }
 
-    free(line);
     return 0;
 }

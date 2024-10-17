@@ -1,118 +1,85 @@
-#include <unistd.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "executor.h"
-#include "parser.h"
-#include "path.h"
-#include "error.h"
+#include "rush.h"
 
-void execute_commands(char **commands) {
-    pid_t pids[MAX_CMDS];
-    int parallel_count = 0;
+void execute_commands(Command **commands, int command_count, PathList *shell_path) {
+    pid_t pids[MAX_COMMANDS];
 
-    for (int i = 0; commands[i] != NULL; i++) {
-        char **args = parse_arguments(commands[i]);
+    for (int i = 0; i < command_count; i++) {
+        Command *cmd = commands[i];
 
-        if (args[0] == NULL) {
-            free_arguments(args);
+        if (cmd->arg_count == 0) {
             continue;
         }
 
-        // Fork a process for each command
-        pids[parallel_count] = fork();
-        if (pids[parallel_count] == 0) {
-            // In child process
-            if (strcmp(args[0], "exit") == 0) {
-                handle_exit(args);
-            } else if (strcmp(args[0], "cd") == 0) {
-                handle_cd(args);
-            } else if (strcmp(args[0], "path") == 0) {
-                update_path(args);
-            } else {
-                handle_execution(args);  // Execute the external command
-            }
-            exit(0);  // Terminate the child process
-        } else if (pids[parallel_count] < 0) {
-            print_error();
+        // Handle built-in commands
+        if (handle_builtin(cmd, shell_path)) {
+            continue;
         }
 
-        parallel_count++;
-        free_arguments(args);
+        // Execute external commands
+        char *executable = find_executable(cmd->args[0], shell_path);
+        if (!executable) {
+            print_error();
+            continue;
+        }
+
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            // Child process
+            if (cmd->is_redirect) {
+                int fd = open(cmd->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                if (fd < 0) {
+                    print_error();
+                    exit(1);
+                }
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+            execv(executable, cmd->args);
+            print_error();
+            exit(1);
+        } else if (pids[i] < 0) {
+            print_error();
+        }
+        free(executable);
     }
 
-    // Wait for all parallel processes to complete
-    for (int i = 0; i < parallel_count; i++) {
+    // Wait for all child processes
+    for (int i = 0; i < command_count; i++) {
         waitpid(pids[i], NULL, 0);
     }
 }
 
-void handle_exit(char **args) {
-    if (args[1] != NULL) {
-        print_error();  // Exit command should not take any arguments
-    } else {
-        exit(0);  // Exit the shell if no arguments are provided
-    }
-}
-
-void handle_cd(char **args) {
-    if (args[1] == NULL || args[2] != NULL) {
-        print_error();
-        return;
-    }
-    if (chdir(args[1]) != 0) {
-        print_error();
-    }
-}
-
-void handle_execution(char **args) {
-    char *redirect_file = check_redirection(args);
-    if (redirect_file) {
-        int fd = open(redirect_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-        if (fd < 0) {
+int handle_builtin(Command *cmd, PathList *shell_path) {
+    if (strcmp(cmd->args[0], "exit") == 0) {
+        if (cmd->arg_count > 1) {
             print_error();
-            return;
+        } else {
+            exit(0);
         }
-        dup2(fd, STDOUT_FILENO);  // Redirect output to the file
+        return 1;
+    } else if (strcmp(cmd->args[0], "cd") == 0) {
+        if (cmd->arg_count != 2) {
+            print_error();
+        } else if (chdir(cmd->args[1]) != 0) {
+            print_error();
+        }
+        return 1;
+    } else if (strcmp(cmd->args[0], "path") == 0) {
+        update_path(shell_path, cmd);
+        return 1;
     }
-
-    char *cmd_path = find_command_path(args[0]);
-    if (cmd_path != NULL) {
-        execv(cmd_path, args);  // Execute the external command
-        print_error();  // If execv returns, it failed
-        exit(1);
-    } else {
-        print_error();
-    }
-
-    if (redirect_file) {
-        close(STDOUT_FILENO);  // Close the file descriptor after redirection
-    }
+    return 0;
 }
 
-char* check_redirection(char **args) {
-    int redirect_count = 0;
-    char* redirect_file = NULL;
-
-    for (int i = 0; args[i] != NULL; i++) {
-        if (strcmp(args[i], ">") == 0) {
-            redirect_count++;
-            if (args[i + 1] != NULL && args[i + 2] == NULL) {
-                redirect_file = args[i + 1];
-                args[i] = NULL;  // Nullify `>` and file name in the argument list
-            } else {
-                print_error();  // Handle the error case for invalid redirection usage
-                return NULL;
-            }
+char *find_executable(char *command, PathList *shell_path) {
+    Node *current = shell_path->head;
+    while (current) {
+        char full_path[MAX_PATH_LEN];
+        snprintf(full_path, sizeof(full_path), "%s/%s", current->path, command);
+        if (access(full_path, X_OK) == 0) {
+            return strdup(full_path);
         }
+        current = current->next;
     }
-
-    if (redirect_count > 1) {
-        print_error();  // More than one redirection symbol is an error
-        return NULL;
-    }
-
-    return redirect_file;
+    return NULL;
 }
