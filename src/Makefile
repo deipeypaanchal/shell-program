@@ -4,7 +4,7 @@ CFLAGS = -Wall -Werror -std=c99
 OBJECTS = main.o parser.o executor.o path_manager.o utilities.o
 
 rush: $(OBJECTS)
-	$(CC) $(CFLAGS)	-o	rush $(OBJECTS)
+	$(CC) $(CFLAGS) -o rush $(OBJECTS)
 
 main.o: main.c rush.h
 	$(CC) $(CFLAGS) -c main.c

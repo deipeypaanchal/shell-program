@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <ctype.h>
+#include <errno.h>
 
 #define MAX_TOKENS 256
 #define MAX_ARGS 64
@@ -38,10 +39,13 @@ Command **parse_input(char *input, int *command_count);
 char **tokenize(char *line);
 Command *create_command();
 void free_commands(Command **commands, int command_count);
+void free_command(Command *cmd);
+void free_tokens(char **tokens);
 
 // Executor functions
 void execute_commands(Command **commands, int command_count, PathList *shell_path);
 int handle_builtin(Command *cmd, PathList *shell_path);
+int is_builtin(char *command);
 char *find_executable(char *command, PathList *shell_path);
 
 // Path manager functions

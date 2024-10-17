@@ -11,23 +11,49 @@ int is_empty_line(char *line) {
 
 Command **parse_input(char *input, int *command_count) {
     char **tokens = tokenize(input);
+    if (!tokens) {
+        return NULL;
+    }
+
     Command **commands = malloc(MAX_COMMANDS * sizeof(Command *));
     *command_count = 0;
 
     Command *current_cmd = create_command();
+    int redirect_count = 0;
+
     for (int i = 0; tokens[i] != NULL; i++) {
         if (strcmp(tokens[i], "&") == 0) {
-            commands[(*command_count)++] = current_cmd;
+            if (current_cmd->arg_count > 0 || current_cmd->is_redirect) {
+                commands[(*command_count)++] = current_cmd;
+            } else {
+                // Skip empty commands
+                free_command(current_cmd);
+            }
             current_cmd = create_command();
+            redirect_count = 0;
         } else if (strcmp(tokens[i], ">") == 0) {
+            redirect_count++;
+            if (redirect_count > 1 || tokens[i + 1] == NULL || (tokens[i + 2] != NULL && strcmp(tokens[i + 2], "&") != 0)) {
+                // Error: Multiple redirections or extra arguments after redirection
+                print_error();
+                free_tokens(tokens);
+                free_command(current_cmd);
+                free_commands(commands, *command_count);
+                *command_count = 0;
+                return NULL;
+            }
             current_cmd->is_redirect = 1;
             current_cmd->output_file = strdup(tokens[++i]);
         } else {
             current_cmd->args[current_cmd->arg_count++] = strdup(tokens[i]);
         }
     }
-    commands[(*command_count)++] = current_cmd;
-    free(tokens);
+    if (current_cmd->arg_count > 0 || current_cmd->is_redirect) {
+        commands[(*command_count)++] = current_cmd;
+    } else {
+        free_command(current_cmd);
+    }
+    free_tokens(tokens);
     return commands;
 }
 
@@ -57,14 +83,25 @@ Command *create_command() {
 
 void free_commands(Command **commands, int command_count) {
     for (int i = 0; i < command_count; i++) {
-        for (int j = 0; j < commands[i]->arg_count; j++) {
-            free(commands[i]->args[j]);
-        }
-        free(commands[i]->args);
-        if (commands[i]->output_file) {
-            free(commands[i]->output_file);
-        }
-        free(commands[i]);
+        free_command(commands[i]);
     }
     free(commands);
+}
+
+void free_command(Command *cmd) {
+    for (int j = 0; j < cmd->arg_count; j++) {
+        free(cmd->args[j]);
+    }
+    free(cmd->args);
+    if (cmd->output_file) {
+        free(cmd->output_file);
+    }
+    free(cmd);
+}
+
+void free_tokens(char **tokens) {
+    for (int i = 0; tokens[i] != NULL; i++) {
+        free(tokens[i]);
+    }
+    free(tokens);
 }

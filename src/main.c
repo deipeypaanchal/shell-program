@@ -16,7 +16,11 @@ int main(int argc, char *argv[]) {
 
         printf("rush> ");
         fflush(stdout);
-        getline(&input_line, &buffer_size, stdin);
+        if (getline(&input_line, &buffer_size, stdin) == -1) {
+            // Handle EOF (Ctrl+D)
+            free(input_line);
+            break;
+        }
 
         // Process the input line
         if (is_empty_line(input_line)) {
@@ -29,12 +33,21 @@ int main(int argc, char *argv[]) {
         Command **commands = parse_input(input_line, &command_count);
         free(input_line);
 
+        if (commands == NULL) {
+            // Parsing error occurred
+            continue;
+        }
+
         // Execute the commands
         execute_commands(commands, command_count, shell_path);
 
         // Clean up
         free_commands(commands, command_count);
     }
+
+    // Free shell path
+    clear_path(shell_path);
+    free(shell_path);
 
     return 0;
 }

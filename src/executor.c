@@ -2,6 +2,7 @@
 
 void execute_commands(Command **commands, int command_count, PathList *shell_path) {
     pid_t pids[MAX_COMMANDS];
+    int pid_count = 0;
 
     for (int i = 0; i < command_count; i++) {
         Command *cmd = commands[i];
@@ -10,8 +11,14 @@ void execute_commands(Command **commands, int command_count, PathList *shell_pat
             continue;
         }
 
-        // Handle built-in commands
-        if (handle_builtin(cmd, shell_path)) {
+        // Handle built-in commands (only if not in parallel execution)
+        if (command_count == 1 && handle_builtin(cmd, shell_path)) {
+            continue;
+        }
+
+        // Built-in commands should not be run in parallel
+        if (is_builtin(cmd->args[0])) {
+            print_error();
             continue;
         }
 
@@ -22,8 +29,11 @@ void execute_commands(Command **commands, int command_count, PathList *shell_pat
             continue;
         }
 
-        pids[i] = fork();
-        if (pids[i] == 0) {
+        // Ensure the args array is NULL-terminated
+        cmd->args[cmd->arg_count] = NULL;
+
+        pid_t pid = fork();
+        if (pid == 0) {
             // Child process
             if (cmd->is_redirect) {
                 int fd = open(cmd->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
@@ -37,14 +47,16 @@ void execute_commands(Command **commands, int command_count, PathList *shell_pat
             execv(executable, cmd->args);
             print_error();
             exit(1);
-        } else if (pids[i] < 0) {
+        } else if (pid < 0) {
             print_error();
+        } else {
+            pids[pid_count++] = pid;
         }
         free(executable);
     }
 
     // Wait for all child processes
-    for (int i = 0; i < command_count; i++) {
+    for (int i = 0; i < pid_count; i++) {
         waitpid(pids[i], NULL, 0);
     }
 }
@@ -69,6 +81,10 @@ int handle_builtin(Command *cmd, PathList *shell_path) {
         return 1;
     }
     return 0;
+}
+
+int is_builtin(char *command) {
+    return (strcmp(command, "exit") == 0 || strcmp(command, "cd") == 0 || strcmp(command, "path") == 0);
 }
 
 char *find_executable(char *command, PathList *shell_path) {
