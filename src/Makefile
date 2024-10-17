@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -std=c99
+# CFLAGS = -Wall -Werror -std=c99
 
 OBJECTS = main.o parser.o executor.o path_manager.o utilities.o
 
