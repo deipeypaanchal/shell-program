@@ -21,6 +21,7 @@ void execute_commands(char **commands) {
             continue;
         }
 
+        // Fork a process for each command
         pids[parallel_count] = fork();
         if (pids[parallel_count] == 0) {
             // In child process
@@ -31,9 +32,9 @@ void execute_commands(char **commands) {
             } else if (strcmp(args[0], "path") == 0) {
                 update_path(args);
             } else {
-                handle_execution(args);  // Execute the command
+                handle_execution(args);  // Execute the external command
             }
-            exit(0);  // Ensure the child process terminates after execution
+            exit(0);  // Terminate the child process
         } else if (pids[parallel_count] < 0) {
             print_error();
         }
@@ -74,20 +75,20 @@ void handle_execution(char **args) {
             print_error();
             return;
         }
-        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDOUT_FILENO);  // Redirect output to the file
     }
 
     char *cmd_path = find_command_path(args[0]);
     if (cmd_path != NULL) {
-        execv(cmd_path, args);
-        print_error();
+        execv(cmd_path, args);  // Execute the external command
+        print_error();  // If execv returns, it failed
         exit(1);
     } else {
         print_error();
     }
 
     if (redirect_file) {
-        close(STDOUT_FILENO);
+        close(STDOUT_FILENO);  // Close the file descriptor after redirection
     }
 }
 
@@ -100,16 +101,16 @@ char* check_redirection(char **args) {
             redirect_count++;
             if (args[i + 1] != NULL && args[i + 2] == NULL) {
                 redirect_file = args[i + 1];
-                args[i] = NULL;  // Nullify `>` and file name
+                args[i] = NULL;  // Nullify `>` and file name in the argument list
             } else {
-                print_error();  // Handle error case for bad redirection usage
+                print_error();  // Handle the error case for invalid redirection usage
                 return NULL;
             }
         }
     }
 
     if (redirect_count > 1) {
-        print_error();  // More than one redirection is an error
+        print_error();  // More than one redirection symbol is an error
         return NULL;
     }
 

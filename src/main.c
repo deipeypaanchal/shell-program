@@ -29,7 +29,6 @@ int main(int argc, char *argv[]) {
         // Remove newline character
         line[strcspn(line, "\n")] = 0;
 
-        // Exit when the command is 'exit'
         if (strcmp(line, "exit") == 0) {
             break;
         }
