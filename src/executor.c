@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "executor.h"
+#include "executor.h"  // This includes the declaration of handle_exit
 #include "parser.h"
 #include "path.h"
 #include "error.h"
