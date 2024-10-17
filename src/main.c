@@ -7,10 +7,15 @@
 #include "path.h"
 #include "error.h"
 
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc > 1) {
+        print_error();  // Print error if rush is invoked with arguments
+        return 1;
+    }
+
     char *line = NULL;
     size_t len = 0;
-    
+
     init_path();  // Initialize the default path
 
     while (1) {
