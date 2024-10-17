@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "executor.h"  // This includes the declaration of handle_exit
+#include "executor.h"
 #include "parser.h"
 #include "path.h"
 #include "error.h"
@@ -33,7 +33,7 @@ void execute_commands(char **commands) {
             } else {
                 handle_execution(args);  // Execute the command
             }
-            exit(0);  // Exit child process after handling the command
+            exit(0);  // Ensure the child process terminates after execution
         } else if (pids[parallel_count] < 0) {
             print_error();
         }

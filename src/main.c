@@ -23,11 +23,16 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
 
         if (getline(&line, &len, stdin) == -1) {
-            break;  // Exit on EOF
+            break;  // Exit on EOF (Ctrl+D)
         }
 
         // Remove newline character
         line[strcspn(line, "\n")] = 0;
+
+        // Exit when the command is 'exit'
+        if (strcmp(line, "exit") == 0) {
+            break;
+        }
 
         if (strlen(line) == 0) {
             continue;  // Ignore empty lines
