@@ -1,45 +1,27 @@
-#include "rush.h"
+#include <stdlib.h>
+#include <string.h>
+#include "path_manager.h"
 
-PathList *init_path() {
-    PathList *plist = malloc(sizeof(PathList));
-    plist->head = NULL;
-    plist->length = 0;
-    add_path(plist, "/bin");
-    return plist;
+void init_path_manager(PathManager *pm) {
+    pm->paths = NULL;
+    pm->count = 0;
 }
 
-void add_path(PathList *plist, char *path) {
-    Node *node = malloc(sizeof(Node));
-    node->path = strdup(path);
-    node->next = NULL;
-
-    if (!plist->head) {
-        plist->head = node;
-    } else {
-        Node *current = plist->head;
-        while (current->next) {
-            current = current->next;
-        }
-        current->next = node;
-    }
-    plist->length++;
+void add_path(PathManager *pm, const char *new_path) {
+    pm->paths = realloc(pm->paths, sizeof(char *) * (pm->count + 1));
+    pm->paths[pm->count] = strdup(new_path);
+    pm->count++;
 }
 
-void clear_path(PathList *plist) {
-    Node *current = plist->head;
-    while (current) {
-        Node *next = current->next;
-        free(current->path);
-        free(current);
-        current = next;
+void reset_path_manager(PathManager *pm) {
+    for (int i = 0; i < pm->count; i++) {
+        free(pm->paths[i]);
     }
-    plist->head = NULL;
-    plist->length = 0;
+    free(pm->paths);
+    pm->paths = NULL;
+    pm->count = 0;
 }
 
-void update_path(PathList *plist, Command *cmd) {
-    clear_path(plist);
-    for (int i = 1; i < cmd->arg_count; i++) {
-        add_path(plist, cmd->args[i]);
-    }
+void free_path_manager(PathManager *pm) {
+    reset_path_manager(pm);
 }

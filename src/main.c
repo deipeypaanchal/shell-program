@@ -1,53 +1,58 @@
-#include "rush.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "parser.h"
+#include "executor.h"
+#include "path_manager.h"
+#include "utils.h"
+
+#define PROMPT "rush> "
 
 int main(int argc, char *argv[]) {
-    if (argc > 1) {
+    if (argc != 1) {
         print_error();
         exit(1);
     }
 
-    // Initialize the shell path
-    PathList *shell_path = init_path();
+    char *line = NULL;
+    size_t len = 0;
 
-    // Start the shell loop
+    // Initialize path manager with default path
+    PathManager path_manager;
+    init_path_manager(&path_manager);
+    add_path(&path_manager, "/bin");
+
     while (1) {
-        char *input_line = NULL;
-        size_t buffer_size = 0;
-
-        printf("rush> ");
+        printf("%s", PROMPT);
         fflush(stdout);
-        if (getline(&input_line, &buffer_size, stdin) == -1) {
-            // Handle EOF (Ctrl+D)
-            free(input_line);
-            break;
+
+        ssize_t nread = getline(&line, &len, stdin);
+        if (nread == -1) {
+            break; // EOF reached
         }
 
-        // Process the input line
-        if (is_empty_line(input_line)) {
-            free(input_line);
+        // Remove trailing newline
+        if (line[nread - 1] == '\n') {
+            line[nread - 1] = '\0';
+        }
+
+        if (is_empty_line(line)) {
             continue;
         }
 
         // Parse the input line into commands
-        int command_count = 0;
-        Command **commands = parse_input(input_line, &command_count);
-        free(input_line);
-
-        if (commands == NULL) {
-            // Parsing error occurred
-            continue;
-        }
+        CommandList cmd_list;
+        init_command_list(&cmd_list);
+        parse_input(line, &cmd_list);
 
         // Execute the commands
-        execute_commands(commands, command_count, shell_path);
+        execute_commands(&cmd_list, &path_manager);
 
         // Clean up
-        free_commands(commands, command_count);
+        free_command_list(&cmd_list);
     }
 
-    // Free shell path
-    clear_path(shell_path);
-    free(shell_path);
-
+    free(line);
+    free_path_manager(&path_manager);
     return 0;
 }

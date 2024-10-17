@@ -1,41 +1,46 @@
-#include "rush.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include "executor.h"
+#include "utils.h"
+#include "path_manager.h"
 
-void execute_commands(Command **commands, int command_count, PathList *shell_path) {
-    pid_t pids[MAX_COMMANDS];
-    int pid_count = 0;
+void execute_commands(CommandList *cmd_list, PathManager *path_manager) {
+    pid_t *pids = malloc(sizeof(pid_t) * cmd_list->count);
 
-    for (int i = 0; i < command_count; i++) {
-        Command *cmd = commands[i];
+    for (int i = 0; i < cmd_list->count; i++) {
+        Command *cmd = &cmd_list->commands[i];
 
-        if (cmd->arg_count == 0) {
+        if (cmd->argc == 0) {
             continue;
         }
 
-        // Handle built-in commands (only if not in parallel execution)
-        if (command_count == 1 && handle_builtin(cmd, shell_path)) {
+        // Handle built-in commands
+        if (handle_builtin(cmd, path_manager)) {
             continue;
         }
 
-        // Built-in commands should not be run in parallel
-        if (is_builtin(cmd->args[0])) {
+        // Validate redirection
+        if (cmd->output_redirect == -1 || (cmd->output_redirect && cmd->output_file == NULL)) {
             print_error();
             continue;
         }
 
-        // Execute external commands
-        char *executable = find_executable(cmd->args[0], shell_path);
-        if (!executable) {
+        // Find executable in path
+        char *exec_path = find_executable(cmd->argv[0], path_manager);
+        if (exec_path == NULL) {
             print_error();
             continue;
         }
 
-        // Ensure the args array is NULL-terminated
-        cmd->args[cmd->arg_count] = NULL;
-
+        // Fork and execute
         pid_t pid = fork();
         if (pid == 0) {
             // Child process
-            if (cmd->is_redirect) {
+            if (cmd->output_redirect) {
                 int fd = open(cmd->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
                 if (fd < 0) {
                     print_error();
@@ -44,58 +49,62 @@ void execute_commands(Command **commands, int command_count, PathList *shell_pat
                 dup2(fd, STDOUT_FILENO);
                 close(fd);
             }
-            execv(executable, cmd->args);
+            execv(exec_path, cmd->argv);
+            // If execv returns, an error occurred
             print_error();
             exit(1);
         } else if (pid < 0) {
+            // Fork failed
             print_error();
         } else {
-            pids[pid_count++] = pid;
+            // Parent process
+            pids[i] = pid;
         }
-        free(executable);
+        free(exec_path);
     }
 
     // Wait for all child processes
-    for (int i = 0; i < pid_count; i++) {
-        waitpid(pids[i], NULL, 0);
+    for (int i = 0; i < cmd_list->count; i++) {
+        if (pids[i] > 0) {
+            waitpid(pids[i], NULL, 0);
+        }
     }
+    free(pids);
 }
 
-int handle_builtin(Command *cmd, PathList *shell_path) {
-    if (strcmp(cmd->args[0], "exit") == 0) {
-        if (cmd->arg_count > 1) {
+int handle_builtin(Command *cmd, PathManager *path_manager) {
+    if (strcmp(cmd->argv[0], "exit") == 0) {
+        if (cmd->argc != 1) {
             print_error();
-        } else {
-            exit(0);
+            return 1;
+        }
+        exit(0);
+    } else if (strcmp(cmd->argv[0], "cd") == 0) {
+        if (cmd->argc != 2) {
+            print_error();
+            return 1;
+        }
+        if (chdir(cmd->argv[1]) != 0) {
+            print_error();
         }
         return 1;
-    } else if (strcmp(cmd->args[0], "cd") == 0) {
-        if (cmd->arg_count != 2) {
-            print_error();
-        } else if (chdir(cmd->args[1]) != 0) {
-            print_error();
+    } else if (strcmp(cmd->argv[0], "path") == 0) {
+        reset_path_manager(path_manager);
+        for (int i = 1; i < cmd->argc; i++) {
+            add_path(path_manager, cmd->argv[i]);
         }
-        return 1;
-    } else if (strcmp(cmd->args[0], "path") == 0) {
-        update_path(shell_path, cmd);
         return 1;
     }
     return 0;
 }
 
-int is_builtin(char *command) {
-    return (strcmp(command, "exit") == 0 || strcmp(command, "cd") == 0 || strcmp(command, "path") == 0);
-}
-
-char *find_executable(char *command, PathList *shell_path) {
-    Node *current = shell_path->head;
-    while (current) {
-        char full_path[MAX_PATH_LEN];
-        snprintf(full_path, sizeof(full_path), "%s/%s", current->path, command);
+char *find_executable(char *cmd_name, PathManager *path_manager) {
+    for (int i = 0; i < path_manager->count; i++) {
+        char full_path[512];
+        snprintf(full_path, sizeof(full_path), "%s/%s", path_manager->paths[i], cmd_name);
         if (access(full_path, X_OK) == 0) {
             return strdup(full_path);
         }
-        current = current->next;
     }
     return NULL;
 }

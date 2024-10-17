@@ -1,25 +1,15 @@
 CC = gcc
-# CFLAGS = -Wall -Werror -std=c99
+CFLAGS = -Wall -Werror -std=c11
+DEPS = parser.h executor.h path_manager.h utils.h
+OBJ = main.o parser.o executor.o path_manager.o utils.o
 
-OBJECTS = main.o parser.o executor.o path_manager.o utilities.o
+all: rush
 
-rush: $(OBJECTS)
-	$(CC) $(CFLAGS) -o rush $(OBJECTS)
+%.o: %.c $(DEPS)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-main.o: main.c rush.h
-	$(CC) $(CFLAGS) -c main.c
-
-parser.o: parser.c rush.h
-	$(CC) $(CFLAGS) -c parser.c
-
-executor.o: executor.c rush.h
-	$(CC) $(CFLAGS) -c executor.c
-
-path_manager.o: path_manager.c rush.h
-	$(CC) $(CFLAGS) -c path_manager.c
-
-utilities.o: utilities.c rush.h
-	$(CC) $(CFLAGS) -c utilities.c
+rush: $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f rush *.o
+	rm -f *.o rush

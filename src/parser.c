@@ -1,107 +1,74 @@
-#include "rush.h"
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include "parser.h"
+#include "utils.h"
 
-int is_empty_line(char *line) {
-    for (int i = 0; line[i]; i++) {
-        if (!isspace((unsigned char)line[i])) {
-            return 0;
-        }
-    }
-    return 1;
+void init_command_list(CommandList *cmd_list) {
+    cmd_list->commands = NULL;
+    cmd_list->count = 0;
 }
 
-Command **parse_input(char *input, int *command_count) {
-    char **tokens = tokenize(input);
-    if (!tokens) {
-        return NULL;
-    }
-
-    Command **commands = malloc(MAX_COMMANDS * sizeof(Command *));
-    *command_count = 0;
-
-    Command *current_cmd = create_command();
-    int redirect_count = 0;
-
-    for (int i = 0; tokens[i] != NULL; i++) {
-        if (strcmp(tokens[i], "&") == 0) {
-            if (current_cmd->arg_count > 0 || current_cmd->is_redirect) {
-                commands[(*command_count)++] = current_cmd;
-            } else {
-                // Skip empty commands
-                free_command(current_cmd);
-            }
-            current_cmd = create_command();
-            redirect_count = 0;
-        } else if (strcmp(tokens[i], ">") == 0) {
-            redirect_count++;
-            if (redirect_count > 1 || tokens[i + 1] == NULL || (tokens[i + 2] != NULL && strcmp(tokens[i + 2], "&") != 0)) {
-                // Error: Multiple redirections or extra arguments after redirection
-                print_error();
-                free_tokens(tokens);
-                free_command(current_cmd);
-                free_commands(commands, *command_count);
-                *command_count = 0;
-                return NULL;
-            }
-            current_cmd->is_redirect = 1;
-            current_cmd->output_file = strdup(tokens[++i]);
-        } else {
-            current_cmd->args[current_cmd->arg_count++] = strdup(tokens[i]);
+void free_command_list(CommandList *cmd_list) {
+    for (int i = 0; i < cmd_list->count; i++) {
+        Command *cmd = &cmd_list->commands[i];
+        for (int j = 0; j < cmd->argc; j++) {
+            free(cmd->argv[j]);
+        }
+        free(cmd->argv);
+        if (cmd->output_redirect) {
+            free(cmd->output_file);
         }
     }
-    if (current_cmd->arg_count > 0 || current_cmd->is_redirect) {
-        commands[(*command_count)++] = current_cmd;
-    } else {
-        free_command(current_cmd);
-    }
-    free_tokens(tokens);
-    return commands;
+    free(cmd_list->commands);
 }
 
-char **tokenize(char *line) {
-    char **tokens = malloc(MAX_TOKENS * sizeof(char *));
-    int idx = 0;
+void parse_input(char *input, CommandList *cmd_list) {
+    char *rest = input;
     char *token;
-    char *rest = line;
-
-    while ((token = strsep(&rest, " \t\n")) != NULL) {
-        if (strlen(token) > 0) {
-            tokens[idx++] = strdup(token);
+    while ((token = strsep(&rest, "&")) != NULL) {
+        if (is_empty_line(token)) {
+            continue;
         }
+        cmd_list->commands = realloc(cmd_list->commands, sizeof(Command) * (cmd_list->count + 1));
+        Command *cmd = &cmd_list->commands[cmd_list->count];
+        parse_command(token, cmd);
+        cmd_list->count++;
     }
-    tokens[idx] = NULL;
-    return tokens;
 }
 
-Command *create_command() {
-    Command *cmd = malloc(sizeof(Command));
-    cmd->args = malloc(MAX_ARGS * sizeof(char *));
-    cmd->arg_count = 0;
-    cmd->is_redirect = 0;
+void parse_command(char *command_str, Command *cmd) {
+    cmd->argv = NULL;
+    cmd->argc = 0;
+    cmd->output_redirect = 0;
     cmd->output_file = NULL;
-    return cmd;
-}
 
-void free_commands(Command **commands, int command_count) {
-    for (int i = 0; i < command_count; i++) {
-        free_command(commands[i]);
-    }
-    free(commands);
-}
+    char *rest = command_str;
+    char *token;
+    int redirect_found = 0;
 
-void free_command(Command *cmd) {
-    for (int j = 0; j < cmd->arg_count; j++) {
-        free(cmd->args[j]);
+    while ((token = strsep(&rest, " \t")) != NULL) {
+        if (strlen(token) == 0) {
+            continue;
+        }
+        if (strcmp(token, ">") == 0) {
+            if (redirect_found || cmd->output_redirect) {
+                cmd->output_redirect = -1; // Error state
+                return;
+            }
+            redirect_found = 1;
+            continue;
+        }
+        if (redirect_found) {
+            cmd->output_file = strdup(token);
+            cmd->output_redirect = 1;
+            redirect_found = 0;
+            continue;
+        }
+        cmd->argv = realloc(cmd->argv, sizeof(char *) * (cmd->argc + 1));
+        cmd->argv[cmd->argc] = strdup(token);
+        cmd->argc++;
     }
-    free(cmd->args);
-    if (cmd->output_file) {
-        free(cmd->output_file);
-    }
-    free(cmd);
-}
-
-void free_tokens(char **tokens) {
-    for (int i = 0; tokens[i] != NULL; i++) {
-        free(tokens[i]);
-    }
-    free(tokens);
+    cmd->argv = realloc(cmd->argv, sizeof(char *) * (cmd->argc + 1));
+    cmd->argv[cmd->argc] = NULL; // Null-terminate argv
 }
