@@ -1,60 +1,47 @@
+// src/rush.h
+
 #ifndef RUSH_H
 #define RUSH_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <ctype.h>
-#include <errno.h>
+#include <stddef.h>
 
-#define MAX_TOKENS 256
-#define MAX_ARGS 64
-#define MAX_COMMANDS 128
-#define MAX_PATH_LEN 256
+// Maximum number of arguments per command
+#define MAX_ARGS 10
 
-typedef struct Command {
-    char **args;
-    int arg_count;
-    int is_redirect;
-    char *output_file;
-} Command;
+// Maximum number of paths in the search path
+#define MAX_PATHS 10
 
-typedef struct Node {
-    char *path;
-    struct Node *next;
-} Node;
+// Maximum size for input lines
+#define MAX_INPUT_SIZE 256
 
-typedef struct PathList {
-    Node *head;
-    int length;
-} PathList;
+// Global array to store search paths
+extern char *paths[MAX_PATHS];
 
-// Parser functions
-int is_empty_line(char *line);
-Command **parse_input(char *input, int *command_count);
-char **tokenize(char *line);
-Command *create_command();
-void free_commands(Command **commands, int command_count);
-void free_command(Command *cmd);
-void free_tokens(char **tokens);
+// Error message to be displayed on stderr
+extern char error_message[30];
 
-// Executor functions
-void execute_commands(Command **commands, int command_count, PathList *shell_path);
-int handle_builtin(Command *cmd, PathList *shell_path);
-int is_builtin(char *command);
-char *find_executable(char *command, PathList *shell_path);
+/**
+ * @brief Prints a predefined error message to stderr.
+ */
+void print_error(void);
 
-// Path manager functions
-PathList *init_path();
-void add_path(PathList *plist, char *path);
-void clear_path(PathList *plist);
-void update_path(PathList *plist, Command *cmd);
+/**
+ * @brief Trims leading and trailing whitespace from a string.
+ * 
+ * @param str The string to be trimmed.
+ */
+void trim_whitespace(char *str);
 
-// Utility functions
-void print_error();
+/**
+ * @brief Splits the input line into arguments based on whitespace.
+ * 
+ * The arguments are stored in the provided args array, which should be
+ * pre-allocated with at least MAX_ARGS elements.
+ * 
+ * @param line The input line to parse.
+ * @param args The array to store parsed arguments.
+ */
+void parse_input(char *line, char **args);
 
-#endif
+#endif // RUSH_H
+
